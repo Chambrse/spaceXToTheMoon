@@ -1,3 +1,6 @@
+# files
+/v1data
+
 # Logs
 logs
 *.log
