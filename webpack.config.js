@@ -1,6 +1,10 @@
+const path = require('path');
+
 module.exports = {
-output: {
-    filename: 'bundle.js',
-    path: '/dist',
-  }
-};
+    mode: 'development',
+    entry: './src/index.js',
+    output: {
+      path: path.resolve(__dirname, 'static'),
+      filename: 'bundle.js',
+    },
+  };
