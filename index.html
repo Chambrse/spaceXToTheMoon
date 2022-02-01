@@ -13,25 +13,25 @@
     <title>SpaceX -> Moon</title>
 </head>
 
-<body style='overflow: hidden; margin: 0'>
-    <div style='position: absolute'>
+<body style='overflow: hidden; margin: 0; height: -webkit-fill-available; max-height: -webkit-fill-available;'>
+    <div style='position: absolute; overflow: hidden'>
         <canvas id="c"></canvas>
     </div>
-    <div class='container-fluid vh-100 d-flex flex-column' style='position: absolute; pointer-events: none;'>
+    <div class='container-fluid h-100 d-flex flex-column' style='position: absolute; pointer-events: none;'>
         <div class="row mb-3 mt-auto" style='pointer-events: all;'>
-            <div class="col-1 d-flex justify-content-end">
+            <div class="col-2 col-xs-2 d-flex justify-content-end">
                 <button type="button" class="btn btn-light" id='playPause'>
                     <i class="bi bi-pause-circle-fill"></i>
                 </button>
             </div>
-            <div class="col-10 d-flex flex-column justify-content-center">
+            <div class="col-7 col-xs-8 d-flex flex-column justify-content-center">
                 <input  type="range" class="form-range" min="0" max="5" id="scrubber">
             </div>
-            <div class="col-1 d-flex flex-column justify-content-center">
-                <p id='dateDisplay'>
-                    terst
+            <div class="col-3 col-xs-2 d-flex flex-column justify-content-center">
+                <p id='dateDisplay' style='color: white'>
+                    
                 </p>
-                <p id='timeDisplay'></p>
+                <p id='timeDisplay' style='color: white'></p>
             </div>
         </div>
     </div>
