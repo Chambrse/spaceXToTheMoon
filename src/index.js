@@ -1,16 +1,13 @@
 import * as THREE from 'three'
-import { OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { TGALoader } from 'three/examples/jsm/loaders/TGALoader'
-import positionData from '../3m_combined.json';
+import positionData from '../3m_combined_averaged_delc.json';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutlinePass } from 'three/examples/jsm/postprocessing/OutlinePass.js';
-import { RenderPass} from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
-
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { Vector3 } from 'three';
 
 function main() {
-    // State
     let timeStamp = positionData[0].dateTime;
     let indexOfCurrentTime = 0;
     let fastforward = 3600;
@@ -20,7 +17,7 @@ function main() {
     let thisTimeWindow;
     let xdiff;
     let ydiff;
-    let zdiff;    
+    let zdiff;
     let xdiffbooster;
     let ydiffbooster;
     let zdiffbooster;
@@ -28,7 +25,6 @@ function main() {
     //get initial data window @ indexofcurrenttime
     updatePosition();
 
-    
     let clock = new THREE.Clock();
 
     // set the canvas
@@ -78,6 +74,7 @@ function main() {
         timeStamp = parseInt(e.target.value);
         indexOfCurrentTime = getArrayIndexFromTimeStamp(timeStamp, positionData);
         updatePosition();
+        updateCurves();
         let newPos = interpolatePosition(timeStamp);
         moon.position.set(newPos.moon.x, newPos.moon.y, newPos.moon.z);
         booster.position.set(newPos.booster.x, newPos.booster.y, newPos.booster.z);
@@ -99,7 +96,6 @@ function main() {
     const ambientLight = new THREE.AmbientLight('white', 2);
     light.position.set(-10000, 0, 0);
     moon.position.set(-181948, -297933, -120212);
-
 
     // labels
     var earthLabel = document.createElement('div');
@@ -147,24 +143,24 @@ function main() {
     let dn = loader.load('./static/galaxy-Z.tga');
     let rt = loader.load('./static/galaxy+Y.tga');
     let lf = loader.load('./static/galaxy-Y.tga');
-    let skyboxArray = [ft,bk,up,dn,rt,lf];
+    let skyboxArray = [ft, bk, up, dn, rt, lf];
     let skyboxmats = skyboxArray.map(element => {
-        return new THREE.MeshBasicMaterial({map: element, side: THREE.BackSide});
+        return new THREE.MeshBasicMaterial({ map: element, side: THREE.BackSide });
     });
     skyboxGeo = new THREE.BoxBufferGeometry(10000000, 10000000, 10000000);
     skybox = new THREE.Mesh(skyboxGeo, skyboxmats);
 
-    let composer = new EffectComposer( renderer );
-    let renderPass = new RenderPass( scene, camera );
-    composer.addPass( renderPass );
-    let outlinePass = new OutlinePass( new THREE.Vector2( window.innerWidth, window.innerHeight ), scene, camera );
+    let composer = new EffectComposer(renderer);
+    let renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+    let outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
     outlinePass.edgeStrength = 5.0
-    outlinePass.edgeGlow  = 1
+    outlinePass.edgeGlow = 1
     outlinePass.edgeThickness = 1;
     outlinePass.visibleEdgeColor.set('#ffffff');
     outlinePass.hiddenEdgeColor.set('#ffffff');
     outlinePass.selectedObjects = [moon, earth, booster];
-    composer.addPass( outlinePass );
+    composer.addPass(outlinePass);
     // let effectFXAA = new ShaderPass(FXAAShader);
     // effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
     // effectFXAA.renderToScreen = true;
@@ -177,6 +173,68 @@ function main() {
     scene.add(booster);
     // scene.add(ambientLight);
     // renderer.render(scene, camera);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+    const lineMaterial2 = new THREE.LineBasicMaterial({ color: 0xffffff });
+    let moonCurve;
+    let boosterCurve;
+    let moonVectorArray = positionData.map(e => new Vector3(e['x-moon (km)'], e['y-moon (km)'], e['z-moon (km)']));
+    let boosterVectorArrayRough = positionData.map(e => new Vector3(e['x-booster (km)'], e['y-booster (km)'], e['z-booster (km)']));
+
+    let avgSpread = 12;
+    let boosterDataArrayAveraged = positionData.map((e, i, els) => {
+        // console.log(i);
+        // console.log(els.length);
+
+        if (i < els.length - ((avgSpread / 2) + 1) && i > (avgSpread / 2)) {
+            let range = els.slice(i - (avgSpread / 2), i + (avgSpread / 2));
+            let xsum = range.reduce((a, b) => a + b['x-booster (km)'], 0);
+            let ysum = range.reduce((a, b) => a + b['y-booster (km)'], 0);
+            let zsum = range.reduce((a, b) => a + b['z-booster (km)'], 0);
+
+            return new Vector3(xsum / (avgSpread), ysum / (avgSpread), zsum / (avgSpread));
+        } else return null;
+
+    }).filter((e) => e != null);
+
+    let moonVectorArrayMatchBooster = moonVectorArray.slice(avgSpread / 2, moonVectorArray.length - (avgSpread / 2 + 2));
+
+    console.log('length moon', moonVectorArrayMatchBooster.length);
+    console.log('length booster', boosterDataArrayAveraged.length);
+
+
+    function updateCurves() {
+        let moonVectorArraySub = moonVectorArray.slice(0, indexOfCurrentTime);
+        let boosterVectorArraySub = boosterVectorArrayRough.slice(0, indexOfCurrentTime);
+        // let moonVectorArraySub = moonVectorArrayMatchBooster.slice(0, indexOfCurrentTime);
+        // let boosterVectorArraySub = boosterDataArrayAveraged.slice(0, indexOfCurrentTime);
+
+        if (moonCurve != undefined && boosterCurve != undefined) {
+            moonCurve.geometry.dispose();
+            scene.remove(moonCurve);
+            boosterCurve.geometry.dispose();
+            scene.remove(boosterCurve);
+        }
+
+        let currentPositionMoon = new THREE.Vector3();
+        moon.updateMatrixWorld();
+        currentPositionMoon.setFromMatrixPosition(moon.matrixWorld);
+        let currentPositionBooster = new THREE.Vector3();
+        booster.updateMatrixWorld();
+        currentPositionBooster.setFromMatrixPosition(booster.matrixWorld);
+
+        const pointsMoon = [...moonVectorArraySub, currentPositionMoon];
+        const pointsBooster = [...boosterVectorArraySub, currentPositionBooster];
+
+        const newGeometryMoon = new THREE.BufferGeometry().setFromPoints(pointsMoon);
+        const newGeometryBooster = new THREE.BufferGeometry().setFromPoints(pointsBooster);
+
+
+        moonCurve = new THREE.Line(newGeometryMoon, lineMaterial);
+        scene.add(moonCurve);
+        boosterCurve = new THREE.Line(newGeometryBooster, lineMaterial2);
+        scene.add(boosterCurve);
+
+    }
 
     // updates position of object labels
     function onCameraChange() {
@@ -244,34 +302,37 @@ function main() {
         zdiffbooster = nextPosition['z-booster (km)'] - thisPosition['z-booster (km)'];
     }
 
-
     //given a timestamp, find where in the current time window the object is and interpolate the position
-    function interpolatePosition(timeStamp) {
+    function interpolatePosition() {
 
-        if (thisPosition && nextPosition) {
-            if (timeStamp > nextPosition.dateTime) {
+        if (timeStamp > nextPosition.dateTime) {
+            if (positionData[indexOfCurrentTime + 2] == undefined) {
+                timeStamp = positionData[0].dateTime;
+                indexOfCurrentTime = 0;
+                updatePosition();
+            } else {
                 indexOfCurrentTime++;
                 updatePosition();
             }
-
-            let percentTimeChange = (timeStamp - thisPosition.dateTime) / (thisTimeWindow);
-            let xToAdd = percentTimeChange * xdiff;
-            let yToAdd = percentTimeChange * ydiff;
-            let zToAdd = percentTimeChange * zdiff;
-            let xToAddBooster = percentTimeChange * xdiffbooster;
-            let yToAddBooster = percentTimeChange * ydiffbooster;
-            let zToAddBooster = percentTimeChange * zdiffbooster;
-
-            let moon = { x: thisPosition['x-moon (km)'] + xToAdd, y: thisPosition['y-moon (km)'] + yToAdd, z: thisPosition['z-moon (km)'] + zToAdd };
-            let booster = { x: thisPosition['x-booster (km)'] + xToAddBooster, y: thisPosition['y-booster (km)'] + yToAddBooster, z: thisPosition['z-booster (km)'] + zToAddBooster };
-
-            return { moon: moon, booster: booster}
-        } else {
-            indexOfCurrentTime = 0;
-            moon.position.set(-181948, -297933, -120212);
         }
-    }
 
+        let percentTimeChange = (timeStamp - thisPosition.dateTime) / (thisTimeWindow);
+        let xToAdd = percentTimeChange * xdiff;
+        let yToAdd = percentTimeChange * ydiff;
+        let zToAdd = percentTimeChange * zdiff;
+        let xToAddBooster = percentTimeChange * xdiffbooster;
+        let yToAddBooster = percentTimeChange * ydiffbooster;
+        let zToAddBooster = percentTimeChange * zdiffbooster;
+
+        let moon = { x: thisPosition['x-moon (km)'] + xToAdd, y: thisPosition['y-moon (km)'] + yToAdd, z: thisPosition['z-moon (km)'] + zToAdd };
+        let booster = { x: thisPosition['x-booster (km)'] + xToAddBooster, y: thisPosition['y-booster (km)'] + yToAddBooster, z: thisPosition['z-booster (km)'] + zToAddBooster };
+
+        return { moon: moon, booster: booster }
+        // }
+        // } else {
+
+        // }
+    }
 
     // each frame
     function render(timeSinceLoad) {
@@ -282,9 +343,10 @@ function main() {
             timeDisplay.innerHTML = dateTime.getHours() + ':' + dateTime.getMinutes() + ':' + dateTime.getSeconds();
             dateDisplay.innerHTML = (dateTime.getMonth() + 1) + '/' + dateTime.getDate() + '/' + dateTime.getFullYear();
             scrubber.value = timeStamp;
-            let newPos = interpolatePosition(timeStamp);
+            let newPos = interpolatePosition();
             moon.position.set(newPos.moon.x, newPos.moon.y, newPos.moon.z);
             booster.position.set(newPos.booster.x, newPos.booster.y, newPos.booster.z);
+            updateCurves();
         }
 
         controls.update();
